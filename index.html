@@ -1,0 +1,332 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ALEX URBAN FASHIONS | Gikomba</title>
+<meta name="description" content="Shop quality jeans at ALEX URBAN FASHIONS, Gikomba. Order on WhatsApp.">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--ink:#17231d;--green:#176b45;--cream:#f7f5ef;--gold:#d8ad62}
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;color:var(--ink);background:var(--cream)}
+header{background:#14251c;color:white;padding:25px 18px;text-align:center}
+header h1{margin:0;font-size:27px;letter-spacing:1px}
+header p{color:#e2c78e}
+nav{padding:13px;text-align:center;background:#fff}
+nav a{margin:0 10px;color:var(--green);font-weight:bold;text-decoration:none}
+main{max-width:1100px;margin:auto;padding:20px}
+h2{margin-top:28px}
+.intro{background:#e9e8dc;border-radius:14px;padding:22px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:15px}
+.card{background:white;border-radius:12px;overflow:hidden;box-shadow:0 3px 12px #0000000c}
+.card img{width:100%;height:185px;object-fit:cover;background:#eee}
+.card-content{padding:12px}
+.price{font-size:19px;font-weight:bold;color:var(--green)}
+button,.button{background:var(--green);color:white;border:0;padding:11px 14px;border-radius:7px;cursor:pointer;font-weight:bold}
+button:hover,.button:hover{opacity:.88}
+input,textarea{display:block;width:100%;padding:12px;margin:8px 0 13px;border:1px solid #c9cec8;border-radius:7px;font-size:16px}
+.panel{background:white;padding:18px;border-radius:12px;margin-top:25px}
+.hidden{display:none!important}
+.small{font-size:13px;color:#68746c}
+footer{text-align:center;background:#14251c;color:white;padding:25px;margin-top:35px}
+.product-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
+.danger{background:#a63232}
+#status{white-space:pre-wrap}
+</style>
+</head>
+<body>
+<header>
+  <h1>ALEX URBAN FASHIONS</h1>
+  <p>Quality Fashion • Gikomba, Nairobi</p>
+</header>
+<nav>
+  <a href="#shop">Shop</a>
+  <a href="#location">Location</a>
+  <a href="#owner">Owner Login</a>
+</nav>
+<main>
+  <section class="intro">
+    <h2>Find Your Style</h2>
+    <p>Discover jeans for every style and budget. Choose your item and order directly through WhatsApp.</p>
+    <a class="button" href="#shop" style="display:inline-block;text-decoration:none">Explore Collection</a>
+  </section>
+
+  <section id="shop">
+    <h2>Our Collection</h2>
+    <p class="small">Prices are in Kenyan shillings (KSh).</p>
+    <div id="products" class="grid">Loading products…</div>
+  </section>
+
+  <section id="location" class="panel">
+    <h2>Visit Our Shop</h2>
+    <p><strong>Location:</strong> Gikomba, Nairobi, Kenya</p>
+    <a class="button" target="_blank" rel="noopener"
+       href="https://www.google.com/maps/search/?api=1&query=Gikomba+Market+Nairobi">Get Directions</a>
+    <p>Orders and enquiries: <strong>0743237565</strong></p>
+  </section>
+
+  <section id="owner" class="panel">
+    <h2>Owner Product Manager</h2>
+    <p class="small">Sign in using the owner account you created in Supabase. Do not create a public admin signup.</p>
+    <form id="loginForm">
+      <label>Email</label>
+      <input id="email" type="email" autocomplete="username" required>
+      <label>Password</label>
+      <input id="password" type="password" autocomplete="current-password" required>
+      <button type="submit">Sign in</button>
+    </form>
+
+    <div id="adminArea" class="hidden">
+      <h3 id="formTitle">Add a product</h3>
+      <form id="productForm">
+        <input id="productId" type="hidden">
+        <label>Product name</label>
+        <input id="productName" maxlength="100" required placeholder="e.g. Blue Cargo Jeans">
+        <label>Price (KSh)</label>
+        <input id="productPrice" type="number" min="0" step="1" required placeholder="900">
+        <label>Choose photo from your phone gallery</label>
+        <input id="productImage" type="file" accept="image/*">
+        <p class="small">Choose a new photo when adding a product or replacing its current image.</p>
+        <button type="submit">Save product</button>
+        <button id="cancelEdit" type="button" class="hidden">Cancel edit</button>
+      </form>
+      <h3>Manage existing products</h3>
+      <div id="manageProducts"></div>
+      <p><button id="logoutButton" type="button" class="danger">Sign out</button></p>
+    </div>
+    <p id="status" role="status" aria-live="polite"></p>
+  </section>
+</main>
+<footer>
+  <strong>ALEX URBAN FASHIONS</strong>
+  <p>Gikomba, Nairobi • WhatsApp 0743237565</p>
+</footer>
+
+<script>
+const SUPABASE_URL = "https://vyfwvasalukmjlglwqgl.supabase.co/rest/v1/";
+const SUPABASE_KEY = "sb_publishable_ZBSEADLjrOH76BgHDbpzJQ_IIrw6L_f";
+
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const $ = id => document.getElementById(id);
+let isAdmin = false;
+let products = [];
+
+function say(message) {
+  $("status").textContent = message;
+}
+function safe(value) {
+  return String(value ?? "").replace(/[&<>"']/g, ch => ({
+    "&":"&amp;", "<":"&lt;", ">":"&gt;",
+    '"':"&quot;", "'":"&#39;"
+  })[ch]);
+}
+function money(value) {
+  return "KSh " + Number(value).toLocaleString("en-KE");
+}
+function photo(product) {
+  return product.image_url || "";
+}
+function waLink(product) {
+  const text = `Hello ALEX URBAN FASHIONS, I would like to order ${product.name} for ${money(product.price)}. Please confirm availability and sizes.`;
+  return "https://wa.me/254743237565?text=" + encodeURIComponent(text);
+}
+
+async function loadProducts() {
+  const {data, error} = await db.from("products")
+    .select("id,name,price,image_url")
+    .order("created_at", {ascending:false});
+
+  if (error) {
+    $("products").textContent = "Could not load products. Check your Supabase connection and table permissions.";
+    say(error.message);
+    return;
+  }
+  products = data || [];
+  renderProducts();
+  if (isAdmin) renderManager();
+}
+
+function renderProducts() {
+  const root = $("products");
+  root.replaceChildren();
+
+  if (!products.length) {
+    root.textContent = "Our collection is being updated. Please check again soon.";
+    return;
+  }
+
+  products.forEach(p => {
+    const article = document.createElement("article");
+    article.className = "card";
+    const image = p.image_url
+      ? `<img src="${safe(p.image_url)}" alt="${safe(p.name)}" loading="lazy">`
+      : `<div style="height:185px;display:grid;place-items:center;color:#777">Photo coming soon</div>`;
+    article.innerHTML = `${image}
+      <div class="card-content">
+        <strong>${safe(p.name)}</strong>
+        <p class="price">${money(p.price)}</p>
+        <a class="button" style="display:block;text-align:center;text-decoration:none"
+           target="_blank" rel="noopener" href="${waLink(p)}">Order on WhatsApp</a>
+      </div>`;
+    root.appendChild(article);
+  });
+}
+
+async function checkAdmin() {
+  const {data:{session}} = await db.auth.getSession();
+  $("loginForm").classList.toggle("hidden", !!session);
+  $("adminArea").classList.add("hidden");
+  isAdmin = false;
+
+  if (!session) return;
+
+  const {data, error} = await db.rpc("is_admin");
+  if (error || data !== true) {
+    say("Signed in, but this account is not authorized to manage products.");
+    return;
+  }
+
+  isAdmin = true;
+  $("adminArea").classList.remove("hidden");
+  await loadProducts();
+  say("Owner access confirmed. You can now manage your catalogue.");
+}
+
+$("loginForm").addEventListener("submit", async event => {
+  event.preventDefault();
+  say("Signing in…");
+  const {error} = await db.auth.signInWithPassword({
+    email:$("email").value.trim(),
+    password:$("password").value
+  });
+  if (error) { say(error.message); return; }
+  $("password").value = "";
+  await checkAdmin();
+});
+
+function resetForm() {
+  $("productForm").reset();
+  $("productId").value = "";
+  $("formTitle").textContent = "Add a product";
+  $("cancelEdit").classList.add("hidden");
+}
+
+$("cancelEdit").addEventListener("click", resetForm);
+
+function renderManager() {
+  const root = $("manageProducts");
+  root.replaceChildren();
+
+  products.forEach(p => {
+    const item = document.createElement("div");
+    item.className = "panel";
+    item.innerHTML = `<strong>${safe(p.name)}</strong><br>
+      ${money(p.price)}
+      <div class="product-actions">
+        <button type="button" data-edit="${safe(p.id)}">Edit</button>
+        <button type="button" class="danger" data-delete="${safe(p.id)}">Delete</button>
+      </div>`;
+    root.appendChild(item);
+  });
+
+  root.querySelectorAll("[data-edit]").forEach(button => {
+    button.addEventListener("click", () => {
+      const p = products.find(x => x.id === button.dataset.edit);
+      if (!p) return;
+      $("productId").value = p.id;
+      $("productName").value = p.name;
+      $("productPrice").value = p.price;
+      $("formTitle").textContent = "Edit product";
+      $("cancelEdit").classList.remove("hidden");
+      $("productImage").value = "";
+      $("productForm").scrollIntoView({behavior:"smooth"});
+    });
+  });
+
+  root.querySelectorAll("[data-delete]").forEach(button => {
+    button.addEventListener("click", async () => {
+      const p = products.find(x => x.id === button.dataset.delete);
+      if (!p || !confirm(`Delete ${p.name}? This cannot be undone.`)) return;
+      const {error} = await db.from("products").delete().eq("id", p.id);
+      if (error) { say(error.message); return; }
+      say("Product deleted.");
+      await loadProducts();
+    });
+  });
+}
+
+$("productForm").addEventListener("submit", async event => {
+  event.preventDefault();
+  if (!isAdmin) { say("Please sign in with the owner account."); return; }
+
+  const name = $("productName").value.trim();
+  const price = Number($("productPrice").value);
+  const id = $("productId").value;
+  const file = $("productImage").files[0];
+  let image_url = id ? (products.find(p => p.id === id)?.image_url || null) : null;
+
+  if (!name || !Number.isFinite(price) || price < 0) {
+    say("Enter a valid product name and price.");
+    return;
+  }
+  if (file && !file.type.startsWith("image/")) {
+    say("Please choose an image file.");
+    return;
+  }
+  if (file && file.size > 5 * 1024 * 1024) {
+    say("Please choose an image smaller than 5 MB.");
+    return;
+  }
+
+  say("Saving product…");
+
+  if (file) {
+    const path = `${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g,"_")}`;
+    const {error:uploadError} = await db.storage
+      .from("product-images").upload(path, file, {
+        cacheControl:"3600", upsert:false, contentType:file.type
+      });
+    if (uploadError) { say("Image upload failed: " + uploadError.message); return; }
+
+    const {data:urlData} = db.storage.from("product-images").getPublicUrl(path);
+    image_url = urlData.publicUrl;
+  }
+
+  const record = {name, price, image_url};
+  const result = id
+    ? await db.from("products").update(record).eq("id", id)
+    : await db.from("products").insert(record);
+
+  if (result.error) { say("Could not save product: " + result.error.message); return; }
+
+  resetForm();
+  say("Product saved. Customers can now see the updated catalogue.");
+  await loadProducts();
+});
+
+$("logoutButton").addEventListener("click", async () => {
+  await db.auth.signOut();
+  isAdmin = false;
+  $("adminArea").classList.add("hidden");
+  $("loginForm").classList.remove("hidden");
+  say("You have signed out.");
+});
+
+db.auth.onAuthStateChange(() => {
+  setTimeout(() => checkAdmin(), 0);
+});
+
+(async function start() {
+  if (SUPABASE_URL.includes("YOUR_") || SUPABASE_KEY.includes("YOUR_")) {
+    say("Website setup needed: replace the two Supabase placeholders in index.html.");
+    $("products").textContent = "Connect your Supabase project to display the live catalogue.";
+    return;
+  }
+  await loadProducts();
+  await checkAdmin();
+})();
+</script>
+</body>
+</html>
